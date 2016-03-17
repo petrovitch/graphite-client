@@ -1,8 +1,10 @@
 ﻿using System;
+using System.IO;
 using System.Linq;
 using System.ServiceProcess;
 using Graphite.Configuration;
 using Graphite.System.Configuration;
+using log4net.Config;
 
 namespace Graphite.System
 {
@@ -10,7 +12,8 @@ namespace Graphite.System
     {
         public static void Main(params string[] parameter)
         {
-            if (Environment.UserInteractive)
+			InitializeLogging();
+			if (Environment.UserInteractive)
             {
                 // Start as console...
                 Func<string, bool> isParamater = (s) => s != null && (s.StartsWith("-") || s.StartsWith("/"));
@@ -59,5 +62,16 @@ namespace Graphite.System
                     new WindowsService());
             }
         }
+
+
+		public static int InitializeLogging()
+		{
+			var log4netConfigFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "log4net.config");
+			
+			XmlConfigurator.Configure(new FileInfo(log4netConfigFile));
+
+			return 0;
+		
+		}
     }
 }
