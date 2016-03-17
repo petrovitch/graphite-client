@@ -5,11 +5,14 @@ using System.Linq;
 using Graphite.Configuration;
 using Graphite.Infrastructure;
 using Graphite.System.Configuration;
+using log4net;
 
 namespace Graphite.System
 {
     internal class Kernel : IDisposable
     {
+	    static readonly ILog logger = LogManager.GetLogger(typeof (Kernel));
+
         private const short RetryInterval = 60;
 
         private readonly Scheduler scheduler;
@@ -47,9 +50,11 @@ namespace Graphite.System
 
                     this.scheduler.Add(action, listener.Interval);
                 }
-                catch (InvalidOperationException)
+                catch (InvalidOperationException e)
                 {
-                    if (!listener.Retry)
+					logger.Error(e);
+
+					if (!listener.Retry)
                         throw;
 
                     this.retryCreation.Add(listener);
@@ -216,9 +221,10 @@ namespace Graphite.System
                     
                     this.retryCreation.Remove(listener);
                 }
-                catch (InvalidOperationException)
+                catch (InvalidOperationException e)
                 {
-                }
+					logger.Error(e);
+				}
             }
 
             if (!this.retryCreation.Any())

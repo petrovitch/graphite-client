@@ -1,19 +1,25 @@
 ﻿using System;
 using System.Diagnostics;
+using System.Linq;
+using log4net;
 
 namespace Graphite.System
 {
     internal class CounterListener : IDisposable
     {
-        private PerformanceCounter counter;
+	    private static readonly ILog logger = LogManager.GetLogger(typeof(CounterListener));
+	    readonly string _instance;
+	    private PerformanceCounter counter;
         
         private bool disposed;
 
         public CounterListener(string category, string instance, string counter)
         {
-            try
+	        _instance = instance;
+	        try
             {
-                this.counter = new PerformanceCounter(category, counter, instance);
+	            this.counter = new PerformanceCounter(category, counter, ResolveInstanceName(category, instance));
+				
                 this.counter.Disposed += (sender, e) => this.disposed = true;
 
                 // First call to NextValue returns always 0 -> perforn it without taking value.
@@ -21,18 +27,18 @@ namespace Graphite.System
             }
             catch (InvalidOperationException exception)
             {
-                throw new InvalidOperationException(
+				throw new InvalidOperationException(
                     exception.Message + string.Format(" (Category: '{0}', Counter: '{1}', Instance: '{2}')", category, counter, instance),
                     exception);
             }
         }
 
-        /// <summary>
+	    /// <summary>
         /// Reads the next value from the performance counter.
         /// </summary>
         /// <returns></returns>
-        /// <exception cref="System.ObjectDisposedException">The object or underlying performance counter is already disposed.</exception>
-        /// <exception cref="System.InvalidOperationException">Connection to the underlying counter was closed.</exception>
+        /// <exception cref="ObjectDisposedException">The object or underlying performance counter is already disposed.</exception>
+        /// <exception cref="InvalidOperationException">Connection to the underlying counter was closed.</exception>
         public float? ReportValue()
         {
             if (this.disposed)
@@ -55,14 +61,14 @@ namespace Graphite.System
             }
         }
 
-        public void Dispose()
+	    public void Dispose()
         {
             this.Dispose(true);
 
             GC.SuppressFinalize(this);
         }
 
-        protected virtual void Dispose(bool disposing)
+	    protected virtual void Dispose(bool disposing)
         {
             if (disposing && !this.disposed)
             {
@@ -75,11 +81,11 @@ namespace Graphite.System
             }
         }
 
-        protected virtual void RenewCounter()
+	    protected virtual void RenewCounter()
         {
             this.counter = new PerformanceCounter(this.counter.CategoryName,
                 this.counter.CounterName,
-                this.counter.InstanceName);
+                ResolveInstanceName(this.counter.CategoryName, _instance));
 
             this.counter.Disposed += (sender, e) => this.disposed = true;
 
@@ -95,5 +101,42 @@ namespace Graphite.System
                 // nop
             }
         }
+
+	    static string ResolveInstanceName(string category, string instance)
+	    {
+			// Sometimes a counter like ".Net Data Provider for SQLServer" will put the pid in the instance name. 
+			// Not much we can do other than fetch by the first pid matching the process name.
+			if (category == ".Net Data Provider for SqlServer" && !instance.EndsWith("]")) {
+				return GetSqlProviderInstanceNameByProcessName(category, instance);
+			}
+			return instance;
+		}
+		
+	    static string GetSqlProviderInstanceNameByProcessName(string category, string instance)
+	    {
+		    var processes = Process.GetProcessesByName(instance);
+		    if (!processes.Any())
+		    {
+			    logger.WarnFormat("Could not find any processes by the name {0}", instance);
+			    return null;
+		    }
+
+		    var allInstanceNames = new PerformanceCounterCategory(category).GetInstanceNames();
+		    var instanceNames = from instanceName in allInstanceNames
+			    from process in processes
+			    where instanceName.EndsWith(string.Format("[{0}]", processes.First().Id))
+			    select instanceName;
+
+		    var matchedInstanceName = instanceNames.FirstOrDefault();
+
+		    if (matchedInstanceName == null)
+		    {
+			    logger.WarnFormat(
+				    "Could not find any counter instances that match the process name {0}.\r\n Processes={1}\r\nInstances={2}", instance,
+				    string.Join(Environment.NewLine, processes.Select(p => p.ProcessName)),
+				    string.Join(Environment.NewLine, allInstanceNames));
+		    }
+		    return matchedInstanceName;
+	    }
     }
 }

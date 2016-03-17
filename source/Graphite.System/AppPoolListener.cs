@@ -5,20 +5,23 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
+using log4net;
 
 namespace Graphite.System
 {
     internal class AppPoolListener
     {
-        private readonly string appPoolName;
+		private static readonly ILog logger = LogManager.GetLogger(typeof(AppPoolListener));
+		private readonly string appPoolName;
         private readonly string category;
         private readonly string counter;
 
         private string counterName;
 
         private CounterListener counterListener;
+	    static readonly string NetDataProviderForSqlserver = ".Net Data Provider for SqlServer";
 
-        public AppPoolListener(string appPoolName, string category, string counter)
+	    public AppPoolListener(string appPoolName, string category, string counter)
         {
             this.appPoolName = appPoolName;
             this.category = category;
@@ -29,7 +32,7 @@ namespace Graphite.System
         
         public bool LoadCounterName()
         {
-            string newName = this.GetCounterName(this.appPoolName);
+            string newName = category == NetDataProviderForSqlserver ? this.GetDataProviderCounterName((this.appPoolName)) : this.GetCounterName(this.appPoolName);
 
             if (!string.IsNullOrEmpty(newName) && this.counterName != newName)
             {
@@ -60,9 +63,10 @@ namespace Graphite.System
                 {
                     this.counterListener = new CounterListener(category, this.counterName, counter);
                 }
-                catch (InvalidOperationException)
-                { 
-                }
+                catch (InvalidOperationException e)
+                {
+					logger.Error(e);
+				}
             }
 
             if (this.counterListener == null)
@@ -74,14 +78,17 @@ namespace Graphite.System
 
                 return this.counterListener.ReportValue(); ;
             }
-            catch (InvalidOperationException)
+            catch (InvalidOperationException e)
             {
-                // counter not available.
-                this.counterListener = null;
+				logger.Error(e);
+				// counter not available.
+				this.counterListener = null;
 
                 return null;
             }
         }
+
+
 
         private string GetCounterName(string appPool)
         {
@@ -104,7 +111,29 @@ namespace Graphite.System
             return null;
         }
 
-        private string ProcessNameById(string prefix, int processId)
+		private string GetDataProviderCounterName(string appPool)
+		{
+			string result;
+
+			this.Execute("list WP", out result, 1000);
+
+			var match = Regex.Match(
+				result,
+				"WP \"(?<id>[0-9]+)\" \\(applicationPool:" + Regex.Escape(appPool) + "\\)",
+				RegexOptions.IgnoreCase | RegexOptions.Singleline);
+
+			int processId;
+
+			if (match.Success && match.Groups["id"].Success && int.TryParse(match.Groups["id"].Value, out processId)) {
+				var instanceNames = new PerformanceCounterCategory(NetDataProviderForSqlserver).GetInstanceNames();
+				
+				return instanceNames.FirstOrDefault(n => n.EndsWith(string.Format("[{0}]", processId)));
+			}
+
+			return null;
+		}
+
+		private string ProcessNameById(string prefix, int processId)
         {
             var localCategory = new PerformanceCounterCategory("Process");
 
@@ -143,35 +172,46 @@ namespace Graphite.System
                 CreateNoWindow = true,
             };
 
-            var standardOut = new StringBuilder();
+	        try
+	        {
+		        var standardOut = new StringBuilder();
 
-            Process p = Process.Start(startInfo);
+		        Process p = Process.Start(startInfo);
 
-            p.OutputDataReceived += (s, d) => standardOut.AppendLine(d.Data);
-            p.BeginOutputReadLine();
+		        p.OutputDataReceived += (s, d) => standardOut.AppendLine(d.Data);
+		        p.BeginOutputReadLine();
 
-            bool success = p.WaitForExit(maxMilliseconds);
-            p.CancelOutputRead();
+		        bool success = p.WaitForExit(maxMilliseconds);
+		        p.CancelOutputRead();
 
-            if (!success)
-            {
-                try
-                {
-                    p.Kill();
-                }
-                catch (Win32Exception)
-                {
-                    // unable to kill the process
-                }
-                catch (InvalidOperationException)
-                {
-                    // process already stopped
-                }
-            }
+		        if (!success)
+		        {
+			        try
+			        {
+				        p.Kill();
+			        }
+			        catch (Win32Exception e)
+			        {
+						logger.Error(e);
+						// unable to kill the process
+					}
+			        catch (InvalidOperationException e)
+			        {
+						logger.Error(e);
+						// process already stopped
+					}
+		        }
 
-            result = standardOut.ToString();
+		        result = standardOut.ToString();
 
-            return success;
+		        return success;
+	        }
+	        catch (Exception e)
+	        {
+				logger.Error(e);
+				result = string.Empty;
+		        return false;
+	        }
         }
-    }
+	}
 }
