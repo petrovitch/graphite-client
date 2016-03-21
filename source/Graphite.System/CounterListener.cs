@@ -42,7 +42,10 @@ namespace Graphite.System
         public float? ReportValue()
         {
             if (this.disposed)
-                throw new ObjectDisposedException(typeof(PerformanceCounter).Name);
+            {
+	            this.RenewCounter();
+	            return null;
+            }
 
             try
             {
@@ -54,7 +57,7 @@ namespace Graphite.System
                 // Connection to the underlying counter was closed.
 
                 this.Dispose(true);
-
+				
                 this.RenewCounter();
 
                 return null;
@@ -83,16 +86,16 @@ namespace Graphite.System
 
 	    protected virtual void RenewCounter()
         {
-            this.counter = new PerformanceCounter(this.counter.CategoryName,
+
+			try {
+				this.counter = new PerformanceCounter(this.counter.CategoryName,
                 this.counter.CounterName,
                 ResolveInstanceName(this.counter.CategoryName, _instance));
 
-            this.counter.Disposed += (sender, e) => this.disposed = true;
+				this.counter.Disposed += (sender, e) => this.disposed = true;
 
-            this.disposed = false;
+				this.disposed = false;
 
-            try
-            {
                 // First call to NextValue returns always 0 -> perforn it without taking value.
                 this.counter.NextValue();
             }
