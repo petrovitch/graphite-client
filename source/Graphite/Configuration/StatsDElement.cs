@@ -23,6 +23,11 @@ namespace Graphite.Configuration
         internal const string PrefixKeyPropertyName = "prefixKey";
 
         /// <summary>
+        /// The XML name of the <see cref="SuffixKey"/> property.
+        /// </summary> 
+        internal const string SuffixKeyPropertyName = "suffixKey";
+
+        /// <summary>
         /// Gets or sets the port number.
         /// </summary>        
         [ConfigurationPropertyAttribute(PortPropertyName, IsRequired = true)]
@@ -50,6 +55,15 @@ namespace Graphite.Configuration
         {
             get { return (string)base[PrefixKeyPropertyName]; }
             set { base[PrefixKeyPropertyName] = value; }
+        }
+
+        /// <summary>
+        /// Gets or sets the prefix key.
+        /// </summary>        
+        [ConfigurationProperty(SuffixKeyPropertyName, IsRequired = false)]
+        public string SuffixKey {
+            get { return (string)base[SuffixKeyPropertyName]; }
+            set { base[SuffixKeyPropertyName] = value; }
         }
     }
 }

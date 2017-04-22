@@ -24,6 +24,11 @@ namespace Graphite.Configuration
         public string PrefixKey { get; private set; }
 
         /// <summary>
+        /// Gets the common prefix key.
+        /// </summary>        
+        public string SuffixKey { get; private set; }
+
+        /// <summary>
         /// Parses connection string to properties.
         /// </summary>
         /// <param name="connectionString"></param>
@@ -58,6 +63,10 @@ namespace Graphite.Configuration
                 if (values.TryGetValue("prefixkey", out value))
                 {
                     this.PrefixKey = value;
+                }
+
+                if (values.TryGetValue("suffixkey", out value)) {
+                    this.SuffixKey = value;
                 }
             }
 

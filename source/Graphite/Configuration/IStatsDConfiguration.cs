@@ -19,5 +19,10 @@ namespace Graphite.Configuration
         /// Gets the common prefix key.
         /// </summary>        
         string PrefixKey { get; }
+
+        /// <summary>
+        /// Gets the common suffix key.
+        /// </summary>        
+        string SuffixKey { get; }
     }
 }

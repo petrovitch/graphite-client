@@ -11,8 +11,12 @@ namespace Graphite
     /// </summary>
     public class ChannelFactory : IDisposable
     {
-        private static readonly Func<string, string, string> buildKey = (prefix, key) => 
-            !string.IsNullOrEmpty(prefix) ? prefix + "." + key : key;
+        static readonly Func<string, string, string, string> buildKey = (prefix, suffix, key) =>
+        {
+            var formattedKey = !string.IsNullOrEmpty(prefix) ? prefix + "." + key : key;
+            formattedKey = !string.IsNullOrEmpty(suffix) ? formattedKey + suffix : formattedKey;
+            return formattedKey;
+        };
 
         private readonly FormatterFactory formatters;
 
@@ -21,6 +25,7 @@ namespace Graphite
 
         private string graphitePrefix = null;
         private string statsdPrefix = null;
+        private string statsdSuffix = null;
 
         private bool disposed;
 
@@ -55,7 +60,7 @@ namespace Graphite
                     throw new InvalidOperationException("graphite pipe is not configured.");
 
                 return new MonitoringChannel(
-                    k => buildKey(this.graphitePrefix, k), 
+                    k => buildKey(this.graphitePrefix, null, k), 
                     formatter, 
                     this.graphitePipe);
             }
@@ -65,7 +70,7 @@ namespace Graphite
                     throw new InvalidOperationException("statsd pipe is not configured.");
 
                 return new MonitoringChannel(
-                    k => buildKey(this.statsdPrefix, k), 
+                    k => buildKey(this.statsdPrefix, this.statsdSuffix, k), 
                     formatter, 
                     this.statsdPipe);
             }
@@ -92,7 +97,7 @@ namespace Graphite
                     throw new InvalidOperationException("statsd pipe is not configured.");
 
                 return new SamplingMonitoringChannel(
-                    k => buildKey(this.statsdPrefix, k), 
+                    k => buildKey(this.statsdPrefix, this.statsdSuffix, k), 
                     formatter, 
                     this.statsdPipe, 
                     sampling);
@@ -152,6 +157,7 @@ namespace Graphite
             {
                 this.SetupStatsD(statsd);
                 this.statsdPrefix = statsd.PrefixKey;
+                this.statsdSuffix = statsd.SuffixKey;
             }
         }
 
