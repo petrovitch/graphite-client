@@ -112,8 +112,21 @@ namespace Graphite.System
 			if (category == ".Net Data Provider for SqlServer" && !instance.EndsWith("]")) {
 				return GetSqlProviderInstanceNameByProcessName(category, instance);
 			}
-			return instance;
-		}
+
+			// Look for an instance name that exactly matches the specified instance
+			var allInstanceNames = new PerformanceCounterCategory(category).GetInstanceNames();
+		    var matched = allInstanceNames.FirstOrDefault(i => i.Equals(instance, StringComparison.CurrentCultureIgnoreCase));
+		    if (matched != null)
+		    {
+			    return matched;
+		    }
+
+			// Check for a specified pipe delimited list of options and find the first match or just pick the first instance.
+			return instance.Split('|')
+				.Select(i => i.Trim())
+				.Select(i => allInstanceNames.FirstOrDefault(a => a.Equals(i, StringComparison.InvariantCultureIgnoreCase)))
+				.FirstOrDefault() ?? allInstanceNames.FirstOrDefault();
+	    }
 		
 	    static string GetSqlProviderInstanceNameByProcessName(string category, string instance)
 	    {
